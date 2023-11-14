@@ -1,0 +1,101 @@
+/*
+ * Copyright 2014 - 2023 Blazebit.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.seregy77.sample;
+
+import com.blazebit.persistence.Criteria;
+import com.blazebit.persistence.CriteriaBuilderFactory;
+import com.blazebit.persistence.spi.CriteriaBuilderConfiguration;
+import com.blazebit.persistence.view.EntityViewManager;
+import com.blazebit.persistence.view.EntityViews;
+import com.blazebit.persistence.view.spi.EntityViewConfiguration;
+import com.seregy77.model.Cat;
+import java.util.function.Consumer;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+import javax.persistence.EntityTransaction;
+import javax.persistence.Persistence;
+import org.junit.After;
+import org.junit.Before;
+
+public abstract class AbstractSampleTest {
+
+  protected EntityManagerFactory emf;
+  protected CriteriaBuilderFactory cbf;
+  protected EntityViewManager evm;
+
+  @Before
+  public void init() {
+    emf = Persistence.createEntityManagerFactory("default");
+    CriteriaBuilderConfiguration config = Criteria.getDefault();
+    cbf = config.createCriteriaBuilderFactory(emf);
+
+    EntityViewConfiguration entityViewConfiguration = EntityViews.createDefaultConfiguration();
+
+    for (Class<?> entityViewClazz : getEntityViewClasses()) {
+      entityViewConfiguration.addEntityView(entityViewClazz);
+    }
+
+    evm = entityViewConfiguration.createEntityViewManager(cbf);
+
+    transactional(em -> {
+      Cat c1 = new Cat("C1", 1);
+      Cat c2 = new Cat("C2", 2);
+      Cat c3 = new Cat("C3", 4);
+
+      Cat c4 = new Cat("C4", 6);
+
+      Cat c5 = new Cat("C5", 8);
+      Cat c6 = new Cat("C6", 7);
+
+      em.persist(c1);
+      em.persist(c2);
+      em.persist(c3);
+      em.persist(c4);
+      em.persist(c5);
+      em.persist(c6);
+    });
+  }
+
+  protected abstract Class<?>[] getEntityViewClasses();
+
+  protected void transactional(Consumer<EntityManager> consumer) {
+    EntityManager em = emf.createEntityManager();
+    EntityTransaction tx = em.getTransaction();
+    boolean success = false;
+
+    try {
+      tx.begin();
+      consumer.accept(em);
+      success = true;
+    } finally {
+      try {
+        if (success) {
+          tx.commit();
+        } else {
+          tx.rollback();
+        }
+      } finally {
+        em.close();
+      }
+    }
+  }
+
+  @After
+  public void destruct() {
+    emf.close();
+  }
+}
